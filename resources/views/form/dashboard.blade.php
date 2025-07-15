@@ -20,7 +20,7 @@
             </div>
 
             <nav class="space-y-2 mt-6">
-                <a href="#" class="block bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded shadow-md text-center">📋 Existing</a>
+
                 <a href="{{ route('form.builder') }}" class="block bg-white/10 hover:bg-white/20 px-4 py-2 rounded shadow text-center">➕ New Form</a>
             </nav>
 
@@ -28,11 +28,26 @@
                 <h3 class="text-sm font-semibold mb-3">🗂 Existing Forms</h3>
                 <ul class="space-y-1 text-sm text-white/80">
                     @foreach($forms as $form)
-                    <li class="flex items-center gap-2 hover:text-white">
-                        <span>📄</span>{{ $form }}
+                    @php
+                    $slug = str_replace([' ', '-'], '_', strtolower($form));
+                    @endphp
+                    <li class="flex items-center justify-between gap-2 hover:text-white">
+                        <a href="{{ route('form.fill', ['username' => $user->username, 'slug' => $slug]) }}" class="flex items-center gap-2">
+                            <span>📄</span>{{ $form }}
+                        </a>
+
+                        <form method="POST" action="{{ route('form.delete', ['form' => $slug]) }}" onsubmit="return confirm('Are you sure to delete this form?');">
+                            @csrf
+                            @method('DELETE')
+                            <button type="submit" class="text-red-400 hover:text-red-600 ml-2" title="Delete">
+                                ❌
+                            </button>
+                        </form>
                     </li>
                     @endforeach
+
                 </ul>
+
             </div>
         </div>
 
@@ -56,13 +71,30 @@
 
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             @foreach($responses as $item)
-            <a href="{{ route('form.responses', ['form' => $item['name']]) }}"
-                class="block backdrop-blur-md bg-white/10 hover:bg-white/20 transition p-6 rounded-xl shadow-md">
-                <h2 class="text-xl font-semibold mb-1">{{ $item['name'] }}</h2>
-                <p class="text-white/70">Responses: {{ $item['count'] }}</p>
-            </a>
+            <div class="backdrop-blur-md bg-white/10 hover:bg-white/20 transition p-6 rounded-xl shadow-md relative">
+                <a href="{{ route('form.responses', ['form' => $item['name']]) }}">
+                    <h2 class="text-xl font-semibold mb-1">{{ $item['name'] }}</h2>
+                    <p class="text-white/70">Responses: {{ $item['count'] }}</p>
+                </a>
+
+                @php
+                $slug = str_replace([' ', '-'], '_', strtolower($item['name']));
+                @endphp
+
+                <!-- Delete Button -->
+                <form method="POST" action="{{ route('form.delete', ['form' => $slug]) }}"
+                    onsubmit="return confirm('Are you sure you want to delete this form?');"
+                    class="absolute top-2 right-2">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" title="Delete" class="text-red-400 hover:text-red-600 text-xl">
+                        ❌
+                    </button>
+                </form>
+            </div>
             @endforeach
         </div>
+
     </main>
 
 </body>
