@@ -1,16 +1,20 @@
 FROM php:8.2-apache
 
-# Enable Apache mod_rewrite
-RUN a2enmod rewrite
-
-# Fix Apache to allow .htaccess overrides
-RUN sed -i '/<Directory \/var\/www\/>/,/<\/Directory>/ s/AllowOverride None/AllowOverride All/' /etc/apache2/apache2.conf
-
-# Install system dependencies and PHP extensions
+# Install required dependencies
 RUN apt-get update && apt-get install -y \
-    libpng-dev libjpeg-dev libfreetype6-dev zip unzip git curl \
+    libpng-dev \
+    libjpeg-dev \
+    libfreetype6-dev \
+    zip \
+    unzip \
+    git \
+    curl \
+    libonig-dev \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install gd pdo pdo_mysql mbstring zip
+
+# Enable Apache mod_rewrite
+RUN a2enmod rewrite
 
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
@@ -18,21 +22,18 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # Set working directory
 WORKDIR /var/www/html
 
-# Copy Laravel project files
+# Copy all project files
 COPY . .
 
-# Give permissions to Laravel directories (including public/index.php)
+# Permissions fix
 RUN chown -R www-data:www-data /var/www/html \
-    && chmod -R 755 /var/www/html \
-    && find /var/www/html/public -type f -exec chmod 644 {} \; \
-    && find /var/www/html/public -type d -exec chmod 755 {} \; \
-    && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
+    && chmod -R 755 /var/www/html
 
-# Configure Apache to use Laravel's public directory
+# Clear Laravel caches
+RUN php artisan config:clear && php artisan route:clear && php artisan view:clear
+
+# Set Laravel public folder as Apache root
 RUN sed -i 's|DocumentRoot /var/www/html|DocumentRoot /var/www/html/public|g' /etc/apache2/sites-available/000-default.conf
 
-# Clear Laravel caches (if artisan exists)
-RUN if [ -f artisan ]; then php artisan config:clear && php artisan route:clear && php artisan view:clear; fi
-
-# Start Apache
+# Apache entrypoint
 CMD ["apache2-foreground"]
