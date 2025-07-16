@@ -25,3 +25,5 @@ php artisan route:cache
 php artisan view:cache
 
 echo "✅ Laravel build complete."
+
+chmod -R 775 storage bootstrap/cache
