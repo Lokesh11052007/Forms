@@ -22,11 +22,14 @@ COPY . .
 RUN chown -R www-data:www-data /var/www/html \
     && chmod -R 755 /var/www/html
 
-# Clear Laravel caches
-RUN php artisan config:clear && php artisan route:clear && php artisan view:clear
-
 # Configure Apache to use Laravel's public directory
 RUN sed -i 's|DocumentRoot /var/www/html|DocumentRoot /var/www/html/public|g' /etc/apache2/sites-available/000-default.conf
 
-# Restart Apache
+# Allow .htaccess override
+RUN sed -i '/<Directory \/var\/www\/>/,/<\/Directory>/ s/AllowOverride None/AllowOverride All/' /etc/apache2/apache2.conf
+
+# Expose port (important for Railway)
+EXPOSE 80
+
+# Start Apache
 CMD ["apache2-foreground"]
