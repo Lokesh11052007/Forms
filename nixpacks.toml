@@ -10,11 +10,16 @@ nixPkgs = [
   "php82Extensions.xml",
   "php82Extensions.curl",
   "php82Extensions.bcmath",
-  "php82Extensions.zip"
+  "php82Extensions.zip",
+  "nodejs_20" # ✅ ADD THIS
 ]
 
 [phases.build]
-cmds = ["./build.sh"]
+cmds = [
+  "npm ci",
+  "npm run build",
+  "./build.sh"
+]
 
 [start]
 cmd = "php -S 0.0.0.0:8080 -t public"
