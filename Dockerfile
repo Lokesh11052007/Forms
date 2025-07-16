@@ -1,28 +1,32 @@
-# Use the official PHP image with Apache
 FROM php:8.2-apache
-
-# Install PHP extensions
-RUN apt-get update && apt-get install -y \
-    libpng-dev libjpeg-dev libonig-dev libzip-dev unzip curl \
-    && docker-php-ext-install pdo pdo_mysql mbstring zip gd
 
 # Enable Apache mod_rewrite
 RUN a2enmod rewrite
 
+# Install required PHP extensions
+RUN apt-get update && apt-get install -y \
+    libpng-dev libjpeg-dev libfreetype6-dev zip unzip git curl \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install gd pdo pdo_mysql mbstring zip
+
+# Install Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
 # Set working directory
 WORKDIR /var/www/html
 
-# Copy app files into container
-COPY . /var/www/html
+# Copy all files
+COPY . .
 
-# Set correct permissions
+# Set permissions
 RUN chown -R www-data:www-data /var/www/html \
     && chmod -R 755 /var/www/html
 
-# Fix Apache to use Laravel's public folder
-RUN rm -rf /var/www/html/index.html \
-    && cp -r public/* /var/www/html/ \
-    && rm -rf public
+# Clear Laravel caches
+RUN php artisan config:clear && php artisan route:clear && php artisan view:clear
 
-# Ensure Apache serves from Laravel's public path
-RUN sed -i 's|DocumentRoot /var/www/html|DocumentRoot /var/www/html|' /etc/apache2/sites-available/000-default.conf
+# Configure Apache to use Laravel's public directory
+RUN sed -i 's|DocumentRoot /var/www/html|DocumentRoot /var/www/html/public|g' /etc/apache2/sites-available/000-default.conf
+
+# Restart Apache
+CMD ["apache2-foreground"]
