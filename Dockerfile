@@ -21,21 +21,23 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # Set working directory
 WORKDIR /var/www/html
 
-# Copy only necessary files early to avoid errors in composer
-COPY composer.json composer.lock artisan bootstrap/ ./
+# Copy files required before running `composer install`
+COPY composer.json composer.lock ./
+COPY artisan ./
+COPY bootstrap ./bootstrap
 
-# Run composer install (now artisan + bootstrap/app.php exist!)
+# Run composer install (artisan and bootstrap/app.php now exist)
 RUN composer install --no-dev --optimize-autoloader
 
-# Now copy the rest of the Laravel project
+# Now copy the rest of your Laravel project
 COPY . .
 
-# Set correct permissions
+# Set permissions
 RUN chown -R www-data:www-data /var/www/html \
     && chmod -R 755 /var/www/html/storage
 
-# Railway uses dynamic port variable
+# Expose port for Railway
 EXPOSE ${PORT}
 
-# Start the Laravel app
+# Run Laravel
 CMD php artisan serve --host=0.0.0.0 --port=${PORT:-8000}
