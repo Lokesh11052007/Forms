@@ -21,23 +21,21 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # Set working directory
 WORKDIR /var/www/html
 
-# Copy files required before running `composer install`
-COPY composer.json composer.lock ./
-COPY artisan ./
-COPY bootstrap ./bootstrap
+# Copy just enough files before running composer
+COPY composer.json composer.lock artisan bootstrap/ routes/ config/ ./
 
-# Run composer install (artisan and bootstrap/app.php now exist)
+# Install dependencies (now Laravel won't crash)
 RUN composer install --no-dev --optimize-autoloader
 
-# Now copy the rest of your Laravel project
+# Now copy the rest of the application
 COPY . .
 
-# Set permissions
+# Set correct permissions
 RUN chown -R www-data:www-data /var/www/html \
     && chmod -R 755 /var/www/html/storage
 
-# Expose port for Railway
+# Expose Railway's dynamic port
 EXPOSE ${PORT}
 
-# Run Laravel
-CMD php artisan serve --host=0.0.0.0 --port=${PORT:-8000}
+# Start the Laravel server
+CMD php artisa
