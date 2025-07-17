@@ -1,20 +1,19 @@
-FROM php:8.2-apache
+FROM php:8.2-fpm
 
-# Install required dependencies
+# Install system dependencies and correct libzip version
 RUN apt-get update && apt-get install -y \
     libpng-dev \
     libjpeg-dev \
     libfreetype6-dev \
-    zip \
+    libzip-dev \
     unzip \
+    zip \
     git \
     curl \
     libonig-dev \
+    pkg-config \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install gd pdo pdo_mysql mbstring zip
-
-# Enable Apache mod_rewrite
-RUN a2enmod rewrite
+    && docker-php-ext-install -j$(nproc) gd pdo pdo_mysql mbstring zip
 
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
@@ -22,21 +21,21 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # Set working directory
 WORKDIR /var/www/html
 
-# Copy all project files
-COPY . .
+# Copy composer files first
+COPY composer.json composer.lock ./
 
-# Install PHP dependencies (IMPORTANT)
+# Install PHP dependencies
 RUN composer install --no-dev --optimize-autoloader
 
-# Permissions fix
+# Copy the full Laravel project
+COPY . .
+
+# Laravel permissions (optional)
 RUN chown -R www-data:www-data /var/www/html \
-    && chmod -R 755 /var/www/html
+    && chmod -R 755 /var/www/html/storage
 
-# Clear Laravel caches
-RUN php artisan config:clear && php artisan route:clear && php artisan view:clear
+# Expose the port (Railway uses env var PORT)
+EXPOSE ${PORT}
 
-# Set Laravel public folder as Apache root
-RUN sed -i 's|DocumentRoot /var/www/html|DocumentRoot /var/www/html/public|g' /etc/apache2/sites-available/000-default.conf
-
-# Apache entrypoint
-CMD ["apache2-foreground"]
+# Start the Laravel app
+CMD php artisan serve --host=0.0.0.0 --port=${PORT:-8000}
