@@ -4,7 +4,7 @@ FROM php:8.2-fpm
 RUN apt-get update && apt-get install -y \
     zip unzip git curl \
     libzip-dev libpng-dev libjpeg-dev libfreetype6-dev \
-    libonig-dev \
+    libonig-dev libonig5 \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install gd zip pdo pdo_mysql mbstring
 
@@ -13,10 +13,12 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html
 
-# Copy full Laravel app BEFORE running composer
-COPY . .
+# Copy composer files first to optimize layer caching
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --optimize-autoloader --no-scripts
 
-RUN composer install --no-dev --optimize-autoloader
+# Copy the rest of the application
+COPY . .
 
 # Permissions
 RUN chown -R www-data:www-data /var/www/html \
