@@ -1,6 +1,6 @@
 FROM php:8.2-fpm
 
-# System dependencies
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     libpng-dev \
     libjpeg-dev \
@@ -21,21 +21,21 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # Set working directory
 WORKDIR /var/www/html
 
-# Copy only what's needed for composer
+# Copy only necessary files early to avoid errors in composer
 COPY composer.json composer.lock artisan bootstrap/ ./
 
-# Now install dependencies
+# Run composer install (now artisan + bootstrap/app.php exist!)
 RUN composer install --no-dev --optimize-autoloader
 
-# Now copy the rest of the app (after vendor exists)
+# Now copy the rest of the Laravel project
 COPY . .
 
-# Fix permissions
+# Set correct permissions
 RUN chown -R www-data:www-data /var/www/html \
     && chmod -R 755 /var/www/html/storage
 
-# Railway exposes a dynamic PORT
+# Railway uses dynamic port variable
 EXPOSE ${PORT}
 
-# Start Laravel app
+# Start the Laravel app
 CMD php artisan serve --host=0.0.0.0 --port=${PORT:-8000}
