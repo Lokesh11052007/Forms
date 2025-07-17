@@ -227,6 +227,20 @@ docker-compose build
 # Start the containers
 docker-compose up -d
 
+Here's the full sequence you should follow after docker-compose up -d:
+
+# 1. Install PHP dependencies
+docker-compose run --rm composer install
+
+# 2. Generate application key (if not already in .env)
+docker-compose run --rm artisan key:generate
+
+# 3. Run database migrations
+docker-compose run --rm artisan migrate
+
+# 4. (Optional) Seed sample data
+docker-compose run --rm artisan db:seed
+
 #Check if containers are running:
 docker-compose ps
 
