@@ -1,0 +1,83 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        user: 'laravel'
+        uid: '1000'
+    image: laravel-app
+    container_name: laravel-app
+    restart: unless-stopped
+    working_dir: /var/www
+    volumes:
+      - ./:/var/www
+    networks:
+      - laravel-network
+
+  webserver:
+    image: nginx:alpine
+    container_name: webserver
+    restart: unless-stopped
+    ports:
+      - "8000:80"
+    volumes:
+      - ./:/var/www
+      - ./docker/nginx:/etc/nginx/conf.d
+    networks:
+      - laravel-network
+    depends_on:
+      - app
+      - db
+
+  db:
+    image: mysql:8.0
+    container_name: db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: laravel
+      MYSQL_USER: laravel
+      MYSQL_PASSWORD: secret
+      MYSQL_ROOT_PASSWORD: secret
+    volumes:
+      - dbdata:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    networks:
+      - laravel-network
+
+  composer:
+    image: composer:2
+    container_name: composer
+    volumes:
+      - ./:/var/www
+    working_dir: /var/www
+    depends_on:
+      - app
+
+  artisan:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        user: 'laravel'
+        uid: '1000'
+    image: laravel-app
+    container_name: artisan
+    depends_on:
+      - app
+      - db
+    working_dir: /var/www
+    entrypoint: ['php', '/var/www/artisan']
+    volumes:
+      - ./:/var/www
+    networks:
+      - laravel-network
+
+volumes:
+  dbdata:
+    driver: local
+
+networks:
+  laravel-network:
+    driver: bridge
