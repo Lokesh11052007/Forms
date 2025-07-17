@@ -49,7 +49,7 @@ class AuthController extends Controller
             )
         ");
 
-        return response()->json(['message' => 'User registered and table created!']);
+        return redirect('/login')->with('success', 'User registered successfully! Please login.');
     }
 
 
