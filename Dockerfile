@@ -1,6 +1,6 @@
 FROM php:8.2-fpm
 
-# Install system dependencies and correct libzip version
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     libpng-dev \
     libjpeg-dev \
@@ -21,21 +21,21 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # Set working directory
 WORKDIR /var/www/html
 
-# Copy composer files first
-COPY composer.json composer.lock ./
+# Copy files needed early
+COPY composer.json composer.lock artisan ./
 
 # Install PHP dependencies
 RUN composer install --no-dev --optimize-autoloader
 
-# Copy the full Laravel project
+# Copy the rest of the Laravel project
 COPY . .
 
-# Laravel permissions (optional)
+# Set permissions
 RUN chown -R www-data:www-data /var/www/html \
     && chmod -R 755 /var/www/html/storage
 
-# Expose the port (Railway uses env var PORT)
+# Expose port for Railway
 EXPOSE ${PORT}
 
-# Start the Laravel app
+# Run Laravel
 CMD php artisan serve --host=0.0.0.0 --port=${PORT:-8000}
