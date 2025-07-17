@@ -2,7 +2,7 @@ FROM php:8.2-fpm
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
-    zip unzip git curl \
+    zip unzip git curl nginx \
     libzip-dev libpng-dev libjpeg-dev libfreetype6-dev \
     libonig-dev libonig5 \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
@@ -27,11 +27,16 @@ RUN chown -R www-data:www-data /var/www/html \
 # Generate Laravel key if missing
 RUN if [ ! -f ".env" ]; then cp .env.example .env && php artisan key:generate; fi
 
-# Clear and cache config
-RUN php artisan config:cache
+# Cache config for production
+RUN php artisan config:cache && \
+    php artisan route:cache && \
+    php artisan view:cache
+
+# Copy Nginx config
+COPY docker/nginx.conf /etc/nginx/sites-available/default
 
 # Expose the correct port (Railway uses dynamic ports)
 EXPOSE ${PORT}
 
-# Start PHP-FPM (better for production) OR artisan serve (for testing)
-CMD php artisan serve --host=0.0.0.0 --port=${PORT:-8000}
+# Start Nginx and PHP-FPM
+CMD sh -c "php-fpm -D && nginx -g 'daemon off;'"
