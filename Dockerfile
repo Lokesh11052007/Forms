@@ -34,6 +34,7 @@
 # USER $user
 
 # Use official PHP Apache image
+
 FROM php:8.2-apache
 
 # Install system dependencies
@@ -47,29 +48,26 @@ RUN a2enmod rewrite
 # Set working directory
 WORKDIR /var/www/html
 
-# Copy Laravel project files
+# Copy project files
 COPY . /var/www/html
 
-# Fix permissions for storage and bootstrap/cache
+# Fix permissions
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 
-# Set document root to Laravel public folder
-ENV APACHE_DOCUMENT_ROOT /var/www/html/public
-
-# Update Apache site config to use public directory
-RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/000-default.conf
+# Set Apache document root to public folder
+RUN sed -ri -e 's!/var/www/html!/var/www/html/public!g' /etc/apache2/sites-available/000-default.conf
 
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Install Laravel dependencies
+# Install PHP dependencies
 RUN composer install --no-interaction --optimize-autoloader \
     && php artisan config:clear \
     && php artisan route:clear \
     && php artisan view:clear
 
-# Expose port 80
+# Expose port
 EXPOSE 80
 
-# Start Apache in foreground
+# Start Apache
 CMD ["apache2-foreground"]
