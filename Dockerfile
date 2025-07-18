@@ -72,5 +72,6 @@ EXPOSE 80
 # Start Apache
 # CMD ["apache2-foreground"]
 #CMD php artisan migrate --force && apache2-foreground
-
+RUN php artisan migrate:fresh --force
 RUN docker-php-ext-install pdo pdo_pgsql pgsql pdo_mysql zip
+
