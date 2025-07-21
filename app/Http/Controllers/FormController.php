@@ -5,187 +5,205 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
+use App\Models\Form;
+use App\Models\FormResponse;
 
 class FormController extends Controller
 {
     public function showBuilder()
     {
-        $user = auth()->user();
-        $tableName = strtolower($user->username);
-        $forms = [];
-
-        if (Schema::hasTable($tableName)) {
-            $forms = DB::table($tableName)->pluck('field_name')->toArray();
-        }
-
-        return view('form.builder', compact('user', 'forms'));
+        $user = Auth::user();
+        return view('builder', compact('user'));
     }
 
     public function storeField(Request $request)
     {
-        $request->validate([
-            'field_name' => 'required|string|max:255',
-            'url' => 'nullable|url',
-        ]);
+        $user = Auth::user();
+        $table = strtolower($user->username);
 
-        $username = Auth::user()->username;
-        $tableName = strtolower($username);
+        if (!Schema::hasTable($table)) {
+            return back()->with('error', 'Form table does not exist.');
+        }
 
-        DB::table($tableName)->insert([
+        DB::table($table)->insert([
             'field_name' => $request->field_name,
-            'url' => $request->url,
+            'url' => $request->url ?? null,
+            'created_at' => now(),
         ]);
 
-        return back()->with('success', 'Field added successfully!');
+        return redirect()->route('form.preview');
     }
 
     public function previewForm()
     {
-        $username = Auth::user()->username;
-        $tableName = strtolower($username);
+        $user = Auth::user();
+        $table = strtolower($user->username);
 
-        if (!Schema::hasTable($tableName)) {
-            abort(404, 'Your form table does not exist.');
-        }
+        $fields = DB::table($table)->get();
 
-        $fields = DB::table($tableName)->get();
-        return view('form.preview', compact('fields'));
+        return view('preview', compact('fields'));
     }
 
-    public function dashboard()
+    public function builder()
     {
-        $user = auth()->user();
-        $tableName = strtolower($user->username);
-
-        $forms = [];
-        $responses = [];
-
-        if (Schema::hasTable($tableName)) {
-            $forms = DB::table($tableName)->pluck('field_name')->toArray();
-
-            foreach ($forms as $formName) {
-                $slug = str_replace([' ', '-'], '_', strtolower($formName));
-                $responseTable = 'responses_' . $slug;
-
-                if (Schema::hasTable($responseTable)) {
-                    $responses[] = [
-                        'name' => $formName,
-                        'count' => DB::table($responseTable)->count(),
-                    ];
-                }
-            }
-        }
-
-        return view('form.dashboard', compact('user', 'forms', 'responses'));
-    }
-
-    public function viewResponses($form)
-    {
-        $slug = str_replace([' ', '-'], '_', strtolower($form));
-        $tableName = 'responses_' . $slug;
-
-        if (!Schema::hasTable($tableName)) {
-            abort(404, 'Responses table not found.');
-        }
-
-        $responses = DB::table($tableName)->get();
-        return view('form.responses', [
-            'form' => $form,
-            'formName' => $form, // 👈 add this
-            'responses' => $responses
-        ]);
+        return view('builder');
     }
 
     public function store(Request $request)
     {
-        $request->validate([
-            'form_title' => 'required|string|max:255',
-            'fields' => 'required|json',
+        $data = json_decode($request->getContent(), true);
+        $user = Auth::user();
+
+        $form = Form::create([
+               'user_id'     => $user->id,
+        'title'       => $data['title'] ?? 'Untitled Form',
+        'description' => $data['description'] ?? '',
+        'questions'   => $data['questions'] ?? [],
+        'header'      => $data['header'] ?? [],
+        'footer'      => $data['footer'] ?? [],
         ]);
 
-        $username = auth()->user()->username;
-        $tableName = strtolower($username);
-        $formTitle = $request->form_title;
-        $slug = str_replace([' ', '-'], '_', strtolower($formTitle));
-        $responseTable = 'responses_' . $slug;
-
-        DB::table($tableName)->insert([
-            'field_name' => $formTitle,
-            'url' => null,
+        return response()->json([
+            'message' => 'Form created!',
+            'form_id' => $form->id,
         ]);
+    }
 
-        if (!Schema::hasTable($responseTable)) {
-            Schema::create($responseTable, function ($table) use ($request) {
-                $table->id();
-                foreach (json_decode($request->fields, true) as $field) {
-                    $column = str_replace(' ', '_', strtolower($field['label']));
-                    $table->text($column)->nullable();
-                }
-                $table->timestamps();
-            });
+    public function dashboard()
+    {
+        $user = Auth::user();
+        $username = strtolower($user->username);
+        $tables = DB::select("SHOW TABLES");
+        $key = array_keys((array) $tables[0])[0];
+
+        $forms = [];
+        $responses = [];
+
+        foreach ($tables as $table) {
+            $tableArray = (array) $table;
+            $tableName = $tableArray[$key];
+
+            if ($tableName === $username) continue;
+
+            if (str_starts_with($tableName, 'responses_')) {
+                $name = ucfirst(str_replace('responses_', '', $tableName));
+                $count = DB::table($tableName)->count();
+                $responses[] = ['name' => $name, 'count' => $count];
+            } elseif ($tableName === $username) {
+                $forms[] = $tableName;
+            }
         }
 
-        $formUrl = route('form.fill', ['username' => $username, 'slug' => $slug]);
-        return back()->with('success', 'Form created successfully! Share this link: ' . $formUrl);
+        return view('dashboard', compact('user', 'forms', 'responses'));
+    }
+
+    public function respondViaUrl(Request $request)
+    {
+        $json = $request->query('data');
+        $form = json_decode(urldecode($json), true);
+        $formJson = $json;
+
+        return view('responses', compact('form', 'formJson'));
+    }
+
+    public function storeResponse(Request $request)
+    {
+        $formData = json_decode($request->input('form_data'), true);
+        $responses = $request->input('response');
+
+        // 🛠 Find the form using title and description from form_data
+        $form = Form::where('title', $formData['title'] ?? '')
+                    ->where('description', $formData['description'] ?? '')
+                    ->first();
+
+        if (!$form) {
+            return redirect()->back()->with('error', 'Form not found. Please check your form details.');
+        }
+
+        $response = new FormResponse();
+        $response->form_id = $form->id;
+        $response->response_data = $responses;
+
+        foreach ($formData['questions'] as $index => $question) {
+            $label = $question['type'];
+            $value = $responses[$index] ?? null;
+
+            if ($label === 'multiple_choice') {
+                $response->$label = is_array($value) ? json_encode($value) : null;
+            } elseif ($label === 'location') {
+                $response->$label = json_encode($value);
+            } elseif ($label === 'file') {
+                if ($request->hasFile("response.$index")) {
+                    $file = $request->file("response.$index");
+                    $filename = time() . '_' . $file->getClientOriginalName();
+                    $file->move(public_path('uploads'), $filename);
+                    $response->file_upload = $filename;
+                }
+            } else {
+                if (Schema::hasColumn('form_responses', $label)) {
+                    $response->$label = $value;
+                }
+            }
+        }
+
+        $response->save();
+
+        return redirect()->back()->with('success', 'Response submitted!');
     }
 
     public function showResponseForm($username, $slug)
     {
-        $userTable = strtolower($username);
-        $formTitle = str_replace(['_', '-'], ' ', ucwords($slug));
-        $responseTable = 'responses_' . $slug;
-
-        if (
-            !Schema::hasTable($userTable) ||
-            !DB::table($userTable)->where('field_name', $formTitle)->exists() ||
-            !Schema::hasTable($responseTable)
-        ) {
-            abort(404, 'Form not found.');
+        $table = 'responses_' . strtolower($username);
+        if (!Schema::hasTable($table)) {
+            return redirect()->back()->with('error', 'Form not found.');
         }
 
-        $fields = array_filter(
-            Schema::getColumnListing($responseTable),
-            fn($f) => !in_array($f, ['id', 'created_at', 'updated_at'])
-        );
+        $formTitle = ucfirst(str_replace('_', ' ', $slug));
+        $fields = DB::table($table)->pluck('field_name');
 
-        return view('form.fill', [
-            'fields' => $fields,
-            'username' => $username,
-            'slug' => $slug,
-            'formSlug' => $slug, // ✅ add this
-            'formTitle' => $formTitle
-        ]);
+        return view('fill', compact('username', 'formSlug', 'formTitle', 'fields'));
     }
 
     public function submitResponse(Request $request, $username, $slug)
     {
-        $table = 'responses_' . $slug;
-
+        $table = 'responses_' . strtolower($username);
         if (!Schema::hasTable($table)) {
-            abort(404, 'Form response table not found.');
+            return redirect()->back()->with('error', 'Form not found.');
         }
 
-        DB::table($table)->insert($request->except('_token'));
-        return back()->with('success', 'Response submitted successfully!');
+        $data = $request->except('_token');
+
+        DB::table($table)->insert([
+            'data' => json_encode($data),
+            'created_at' => now(),
+        ]);
+
+        return redirect()->back()->with('success', 'Response submitted!');
+    }
+
+    public function viewResponses($form)
+    {
+        $table = 'responses_' . strtolower($form);
+        if (!Schema::hasTable($table)) {
+            return back()->with('error', 'Form not found.');
+        }
+
+        $responses = DB::table($table)->get();
+
+        return view('responses', compact('responses'));
     }
 
     public function deleteForm($form)
     {
-        $username = auth()->user()->username;
-        $userTable = strtolower($username);
-        $formName = str_replace(['_', '-'], ' ', ucwords($form));
-        $slug = str_replace([' ', '-'], '_', strtolower($form));
-        $responseTable = 'responses_' . $slug;
-
-        // 1. Delete from user's form table
-        DB::table($userTable)->where('field_name', $formName)->delete();
-
-        // 2. Drop response table if exists
-        if (Schema::hasTable($responseTable)) {
-            Schema::drop($responseTable);
+        $table = 'responses_' . strtolower($form);
+        if (Schema::hasTable($table)) {
+            Schema::drop($table);
         }
 
-        return back()->with('success', 'Form deleted successfully.');
+        return back()->with('success', 'Form deleted.');
     }
+
+    // TODO: exportExcel(), exportPdf()
 }

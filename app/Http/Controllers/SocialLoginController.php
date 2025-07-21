@@ -8,6 +8,7 @@ use Illuminate\Support\Str;
 use Laravel\Socialite\Facades\Socialite;
 use App\Models\User;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Database\Schema\Blueprint;
 
 class SocialLoginController extends Controller
 {
@@ -31,7 +32,7 @@ class SocialLoginController extends Controller
             $user = User::where('email', $googleUser->getEmail())->first();
 
             if (!$user) {
-                // Create a unique username if needed
+                // Generate a unique username
                 $baseUsername = explode('@', $googleUser->getEmail())[0];
                 $username = $baseUsername;
                 $suffix = 1;
@@ -40,16 +41,17 @@ class SocialLoginController extends Controller
                     $username = $baseUsername . $suffix++;
                 }
 
+                // Create new user
                 $user = User::create([
                     'username' => $username,
                     'email' => $googleUser->getEmail(),
-                    'password' => Hash::make(Str::random(16)), // random password
+                    'password' => Hash::make(Str::random(16)),
                 ]);
 
-                // Optional: create personal form table like "responses_username"
+                // Create a personal response table
                 $tableName = 'responses_' . strtolower($username);
                 if (!Schema::hasTable($tableName)) {
-                    Schema::create($tableName, function ($table) {
+                    Schema::create($tableName, function (Blueprint $table) {
                         $table->id();
                         $table->json('data')->nullable();
                         $table->timestamps();

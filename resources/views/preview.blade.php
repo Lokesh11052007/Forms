@@ -19,7 +19,8 @@
             <li class="border p-3 rounded">
                 <strong>Field:</strong> {{ $field->field_name }}<br>
                 @if($field->url)
-                <strong>URL:</strong> <a href="{{ $field->url }}" class="text-blue-500 underline">{{ $field->url }}</a>
+                <strong>URL:</strong>
+                <a href="{{ $field->url }}" class="text-blue-500 underline" target="_blank">{{ $field->url }}</a>
                 @endif
             </li>
             @endforeach

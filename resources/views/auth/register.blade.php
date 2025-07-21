@@ -12,7 +12,6 @@
     <div class="backdrop-blur-md bg-white/10 border border-white/20 rounded-xl shadow-2xl p-8 w-full max-w-md text-white">
         <h2 class="text-3xl font-bold mb-6 text-center">📝 Create a New Account</h2>
 
-        {{-- Error Message --}}
         @if($errors->any())
         <div class="bg-red-500/20 border border-red-400 text-red-200 p-3 mb-4 rounded">
             {{ $errors->first() }}
