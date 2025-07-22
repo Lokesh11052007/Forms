@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class FormResponse extends Model
 {
+    // 👇 Mass-assignable fields
     protected $fillable = [
         'form_id',
         'name',
@@ -18,18 +19,35 @@ class FormResponse extends Model
         'location',
         'file_upload',
         'age',
-        'birth_date',
-        'response_data'
+        'choice',
+        'text_field',
+        'rating',
+        'date_answer',
+        'ranking',
+        'likert',
+        'nps',
+        'section',
+        // Optional: 'user_id', 'ip_address'
     ];
 
+    // 👇 Automatically cast these fields
     protected $casts = [
         'multiple_choice' => 'array',
-        'location' => 'array',
-        'response_data' => 'array',
+        'location'        => 'array',
+        'ranking'         => 'array',
+        'likert'          => 'array',
+        'date_answer'     => 'date',
     ];
 
+    /** 🔁 Relationship: this response belongs to a form */
     public function form()
     {
         return $this->belongsTo(Form::class);
     }
+
+    /** 🧍 Optional relationship: if tracking which user submitted */
+    // public function user()
+    // {
+    //     return $this->belongsTo(User::class);
+    // }
 }

@@ -2,67 +2,33 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Schema;
 use App\Models\Form;
 use App\Models\FormResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class FormController extends Controller
 {
-    public function showBuilder()
-    {
-        $user = Auth::user();
-        return view('builder', compact('user'));
-    }
-
-    public function storeField(Request $request)
-    {
-        $user = Auth::user();
-        $table = strtolower($user->username);
-
-        if (!Schema::hasTable($table)) {
-            return back()->with('error', 'Form table does not exist.');
-        }
-
-        DB::table($table)->insert([
-            'field_name' => $request->field_name,
-            'url' => $request->url ?? null,
-            'created_at' => now(),
-        ]);
-
-        return redirect()->route('form.preview');
-    }
-
-    public function previewForm()
-    {
-        $user = Auth::user();
-        $table = strtolower($user->username);
-
-        $fields = DB::table($table)->get();
-
-        return view('preview', compact('fields'));
-    }
-
+    // Show JSON form builder UI
     public function builder()
     {
         return view('builder');
     }
 
+    // Store a new custom form built by user
     public function store(Request $request)
     {
-        $data = json_decode($request->getContent(), true);
         $user = Auth::user();
 
         $form = Form::create([
-               'user_id'     => $user->id,
-        'title'       => $data['title'] ?? 'Untitled Form',
-        'description' => $data['description'] ?? '',
-        'questions'   => $data['questions'] ?? [],
-        'header'      => $data['header'] ?? [],
-        'footer'      => $data['footer'] ?? [],
+            'user_id'     => $user->id,
+            'title'       => $request->title ?? 'Untitled Form',
+            'description' => $request->description ?? '',
+            'header'      => $request->header ?? [],
+            'footer'      => $request->footer ?? [],
+            'questions'   => $request->questions ?? [],
+            'expires_at'  => $request->expires_at ?? null,
+            'is_active'   => true,
         ]);
 
         return response()->json([
@@ -71,139 +37,106 @@ class FormController extends Controller
         ]);
     }
 
-    public function dashboard()
+    // Show form fill page by ID
+    public function showForm($id)
     {
-        $user = Auth::user();
-        $username = strtolower($user->username);
-        $tables = DB::select("SHOW TABLES");
-        $key = array_keys((array) $tables[0])[0];
+        $form = Form::findOrFail($id);
 
-        $forms = [];
-        $responses = [];
+        if ($form->expires_at && now()->greaterThan($form->expires_at)) {
+            return view('form_expired');
+        }
 
-        foreach ($tables as $table) {
-            $tableArray = (array) $table;
-            $tableName = $tableArray[$key];
+        return view('fill', [
+            'form' => $form,
+            'formJson' => json_encode($form),
+        ]);
+    }
 
-            if ($tableName === $username) continue;
+    // ✅ Store submitted form responses safely
+    public function storeResponse(Request $request)
+    {
+        // ✅ Validation
+        $data = $request->validate([
+            'form_id'         => 'required|exists:forms,id',
+            'name'            => 'nullable|string|max:255',
+            'mobile_number'   => 'nullable|string|max:20',
+            'email'           => 'nullable|email',
+            'short_answer'    => 'nullable|string',
+            'paragraph'       => 'nullable|string',
+            'multiple_choice' => 'nullable|array',
+            'single_choice'   => 'nullable|string',
+            'location'        => 'nullable|array',
+            'file_upload'     => 'nullable|file|mimes:jpg,png,pdf|max:2048',
+            'age'             => 'nullable|integer',
+            'choice'          => 'nullable|string',
+            'text_field'      => 'nullable|string',
+            'rating'          => 'nullable|integer',
+            'date_answer'     => 'nullable|date',
+            'ranking'         => 'nullable|array',
+            'likert'          => 'nullable|array',
+            'nps'             => 'nullable|integer',
+            'section'         => 'nullable|string',
+        ]);
 
-            if (str_starts_with($tableName, 'responses_')) {
-                $name = ucfirst(str_replace('responses_', '', $tableName));
-                $count = DB::table($tableName)->count();
-                $responses[] = ['name' => $name, 'count' => $count];
-            } elseif ($tableName === $username) {
-                $forms[] = $tableName;
+        // ✅ Handle file upload
+        if ($request->hasFile('file_upload')) {
+            $data['file_upload'] = $request->file('file_upload')->store('uploads', 'public');
+        }
+
+        // ✅ Manually JSON encode any arrays before insert
+        foreach (['multiple_choice', 'location', 'ranking', 'likert'] as $jsonField) {
+            if (array_key_exists($jsonField, $data)) {
+                $data[$jsonField] = json_encode($data[$jsonField]);
             }
         }
 
-        return view('dashboard', compact('user', 'forms', 'responses'));
+        // ✅ Actually insert the response
+        FormResponse::create($data);
+
+        return back()->with('success', '✅ Response submitted successfully!');
     }
 
+    // Show from Builder via encoded link
     public function respondViaUrl(Request $request)
     {
         $json = $request->query('data');
         $form = json_decode(urldecode($json), true);
-        $formJson = $json;
 
-        return view('responses', compact('form', 'formJson'));
-    }
-
-    public function storeResponse(Request $request)
-    {
-        $formData = json_decode($request->input('form_data'), true);
-        $responses = $request->input('response');
-
-        // 🛠 Find the form using title and description from form_data
-        $form = Form::where('title', $formData['title'] ?? '')
-                    ->where('description', $formData['description'] ?? '')
-                    ->first();
-
-        if (!$form) {
-            return redirect()->back()->with('error', 'Form not found. Please check your form details.');
+        if (!empty($form['expires_at']) && now()->greaterThan($form['expires_at'])) {
+            return view('form_expired');
         }
 
-        $response = new FormResponse();
-        $response->form_id = $form->id;
-        $response->response_data = $responses;
-
-        foreach ($formData['questions'] as $index => $question) {
-            $label = $question['type'];
-            $value = $responses[$index] ?? null;
-
-            if ($label === 'multiple_choice') {
-                $response->$label = is_array($value) ? json_encode($value) : null;
-            } elseif ($label === 'location') {
-                $response->$label = json_encode($value);
-            } elseif ($label === 'file') {
-                if ($request->hasFile("response.$index")) {
-                    $file = $request->file("response.$index");
-                    $filename = time() . '_' . $file->getClientOriginalName();
-                    $file->move(public_path('uploads'), $filename);
-                    $response->file_upload = $filename;
-                }
-            } else {
-                if (Schema::hasColumn('form_responses', $label)) {
-                    $response->$label = $value;
-                }
-            }
-        }
-
-        $response->save();
-
-        return redirect()->back()->with('success', 'Response submitted!');
-    }
-
-    public function showResponseForm($username, $slug)
-    {
-        $table = 'responses_' . strtolower($username);
-        if (!Schema::hasTable($table)) {
-            return redirect()->back()->with('error', 'Form not found.');
-        }
-
-        $formTitle = ucfirst(str_replace('_', ' ', $slug));
-        $fields = DB::table($table)->pluck('field_name');
-
-        return view('fill', compact('username', 'formSlug', 'formTitle', 'fields'));
-    }
-
-    public function submitResponse(Request $request, $username, $slug)
-    {
-        $table = 'responses_' . strtolower($username);
-        if (!Schema::hasTable($table)) {
-            return redirect()->back()->with('error', 'Form not found.');
-        }
-
-        $data = $request->except('_token');
-
-        DB::table($table)->insert([
-            'data' => json_encode($data),
-            'created_at' => now(),
+        return view('responses', [
+            'form' => $form,
+            'formJson' => $json,
         ]);
-
-        return redirect()->back()->with('success', 'Response submitted!');
     }
 
-    public function viewResponses($form)
+    // Dashboard View
+    public function dashboard()
     {
-        $table = 'responses_' . strtolower($form);
-        if (!Schema::hasTable($table)) {
-            return back()->with('error', 'Form not found.');
-        }
+        $user = Auth::user();
+        $forms = Form::where('user_id', $user->id)->latest()->get();
+        $responses = FormResponse::whereIn('form_id', $forms->pluck('id'))->get()->groupBy('form_id');
 
-        $responses = DB::table($table)->get();
-
-        return view('responses', compact('responses'));
+        return view('dashboard', compact('user', 'forms', 'responses'));
     }
 
-    public function deleteForm($form)
+    // Admin: View Submissions
+    public function viewResponses($formId)
     {
-        $table = 'responses_' . strtolower($form);
-        if (Schema::hasTable($table)) {
-            Schema::drop($table);
-        }
+        $form = Form::findOrFail($formId);
+        $responses = $form->responses;
+        $formJson = json_encode($form);
 
-        return back()->with('success', 'Form deleted.');
+        return view('admin.responses', compact('form', 'responses', 'formJson'));
     }
 
-    // TODO: exportExcel(), exportPdf()
+    // Delete a form
+    public function deleteForm($id)
+    {
+        Form::findOrFail($id)->delete();
+
+        return back()->with('success', '🗑️ Form deleted.');
+    }
 }

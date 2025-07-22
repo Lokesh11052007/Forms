@@ -6,85 +6,72 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Database\Schema\Blueprint;
 use App\Models\User;
 
 class AuthController extends Controller
 {
+    // Show registration page
     public function showRegisterForm()
     {
         return view('auth.register');
     }
 
+    // Handle user registration
     public function register(Request $request)
     {
-        // ✅ Validate input with alpha_dash to allow safe table names
+        // Validate input
         $request->validate([
             'username' => 'required|alpha_dash|unique:users,username',
             'email' => 'required|email|unique:users,email',
-            'password' => 'required|min:6',
+            'password' => 'required|min:6|confirmed',
         ]);
 
-        // ✅ Create user
+        // Create user
         $user = User::create([
             'username' => $request->username,
             'email' => $request->email,
             'password' => Hash::make($request->password),
         ]);
 
-        // ✅ Create a unique personal table for the user
-        $tableName = strtolower($user->username);
+        // Optional: auto-login after registration
+        Auth::login($user);
 
-        // ✅ Validate table name format
-        if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $tableName)) {
-            return response()->json(['error' => 'Invalid username for table name.'], 400);
-        }
-
-        // ✅ Create table using Schema if it doesn't exist
-        if (!Schema::hasTable($tableName)) {
-            Schema::create($tableName, function (Blueprint $table) {
-                $table->id();
-                $table->string('field_name');
-                $table->text('url')->nullable();
-                $table->timestamps();
-            });
-        }
-
-        return response()->json(['message' => 'User registered and table created!']);
+        // Redirect to dashboard after successful registration
+        return redirect()->route('dashboard')->with('success', 'Registration successful! Welcome.');
     }
 
+    // Show login page
     public function showLoginForm()
     {
         return view('auth.login');
     }
 
+    // Handle login POST
     public function login(Request $request)
     {
-        // ✅ Validate login form
         $request->validate([
             'username' => 'required',
-            'password' => 'required'
+            'password' => 'required',
         ]);
 
-        // ✅ Find user by username
+        // Check credentials
         $user = User::where('username', $request->username)->first();
 
-        // ✅ Check password
         if ($user && Hash::check($request->password, $user->password)) {
-            Auth::login($user);
+            Auth::login($user, $request->boolean('remember'));
             return redirect()->route('dashboard');
         }
 
-        return back()->withErrors(['username' => 'Invalid username or password']);
+        return back()->withErrors(['username' => 'Invalid username or password'])->withInput();
     }
 
+    // Handle logout
     public function logout(Request $request)
     {
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect()->route('login.form');
+        return redirect()->route('login.form')->with('success', 'Logged out successfully!');
     }
 }
