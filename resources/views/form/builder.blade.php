@@ -27,20 +27,18 @@
                     <a href="{{ route('dashboard') }}" class="block bg-white/10 hover:bg-white/20 px-4 py-2 rounded shadow text-center">📊 Dashboard</a>
                 </nav>
 
-
                 <div class="mt-10">
                     <h3 class="text-sm font-semibold mb-3">🗂 Existing Forms</h3>
                     <ul class="space-y-1 text-sm text-white/80">
                         @foreach($forms as $form)
                         <li class="flex items-center gap-2 hover:text-white">
-                            <span>📄</span>{{ $form }}
+                            <span>📄 {{ $form }}</span>
                         </li>
                         @endforeach
                     </ul>
                 </div>
             </div>
 
-            <!-- Logout -->
             <form method="POST" action="{{ route('logout') }}" class="mt-8">
                 @csrf
                 <button type="submit" class="w-full bg-red-600 hover:bg-red-700 px-4 py-2 rounded text-white shadow-md">
@@ -61,71 +59,107 @@
                 <input type="hidden" id="form-store-url" value="{{ route('form.store') }}">
                 <input type="hidden" id="csrf-token" value="{{ csrf_token() }}">
 
-                <form @submit.prevent="submitForm">
+                <form method="POST" action="{{ route('form.store') }}">
+                    @csrf
                     <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700">Form Title</label>
-                        <input type="text" x-model="formTitle" required class="mt-1 block w-full border rounded p-2">
+                        <label for="form_title" class="block text-gray-700 font-semibold">Form Title</label>
+                        <input type="text" name="form_title" id="form_title" class="mt-1 block w-full border border-gray-300 rounded-md p-2" required>
                     </div>
 
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700">Form Description (optional)</label>
-                        <textarea x-model="formDescription" class="w-full border rounded p-2"></textarea>
-                    </div>
-
-                    <div class="mb-6">
+                    <div id="fields-wrapper">
                         <h3 class="text-lg font-semibold mb-2">Add Fields</h3>
-
-                        <template x-for="(field, index) in fields" :key="index">
-                            <div class="mb-4 border p-4 rounded relative bg-gray-50">
-                                <button type="button" @click="removeField(index)" class="absolute top-2 right-2 text-red-600 hover:text-red-800 text-lg">
-                                    &times;
-                                </button>
-
-                                <label class="block text-sm font-medium mb-1">Question Label</label>
-                                <input type="text" x-model="field.label" class="w-full border rounded p-2 mb-2" required>
-
-                                <label class="block text-sm font-medium mb-1">Field Type</label>
-                                <select x-model="field.type" class="w-full border rounded p-2 mb-2" required>
-                                    <option value="">Select type</option>
-                                    <option value="short">Short Answer</option>
-                                    <option value="paragraph">Paragraph</option>
-                                    <option value="radio">Multiple Choice (Radio)</option>
-                                    <option value="checkbox">Checkboxes</option>
-                                    <option value="date">Date</option>
-                                </select>
-
-                                <template x-if="field.type === 'radio' || field.type === 'checkbox'">
-                                    <div>
-                                        <label class="block text-sm font-medium mb-1">Options</label>
-                                        <template x-for="(opt, idx) in field.options" :key="idx">
-                                            <div class="flex items-center space-x-2 mb-2">
-                                                <input type="text" x-model="field.options[idx]" class="flex-1 border p-2 rounded">
-                                                <button type="button" @click="field.options.splice(idx, 1)" class="text-red-600 text-sm">&#x2715;</button>
-                                            </div>
-                                        </template>
-                                        <button type="button" @click="field.options.push('')" class="text-sm text-blue-600 hover:underline">
-                                            + Add Option
-                                        </button>
-                                    </div>
-                                </template>
-                            </div>
-                        </template>
-
-                        <button type="button" @click="addField" class="bg-blue-500 text-white px-4 py-2 rounded">
-                            + Add Field
-                        </button>
+                        <div id="field-list"></div>
+                        <button type="button" onclick="addField()" class="mt-3 px-4 py-2 bg-blue-500 text-white rounded-md">➕ Add Field</button>
                     </div>
 
-                    <button type="button" @click="submitForm" class="bg-green-600 text-white px-4 py-2 rounded">
-                        Create Form
-                    </button>
+                    <input type="hidden" name="fields" id="fields-input">
 
+                    <button type="submit" onclick="prepareFields()" class="mt-6 w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-md">
+                        ✅ Save Form
+                    </button>
                 </form>
+
+                @if ($forms && count($forms))
+                <hr class="my-6">
+                <h3 class="text-xl font-bold mb-4">Your Forms</h3>
+                <ul class="space-y-2">
+                    @foreach ($forms as $form)
+                    @php
+                    $slug = str_replace([' ', '-'], '_', strtolower($form));
+                    @endphp
+                    <li class="flex justify-between items-center bg-gray-100 p-3 rounded-md">
+                        <span>{{ $form }}</span>
+                        <div class="flex gap-2">
+                            <a href="{{ route('form.fill', ['username' => $user->username, 'slug' => $slug]) }}" class="text-blue-600 hover:underline" target="_blank">🔗 View</a>
+                            <form action="{{ route('form.delete', $slug) }}" method="POST" onsubmit="return confirm('Delete this form?')">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="text-red-500 hover:underline">🗑️ Delete</button>
+                            </form>
+                        </div>
+                    </li>
+                    @endforeach
+                </ul>
+                @endif
             </div>
         </main>
     </div>
 
     <script>
+        let fields = [];
+
+        function addField() {
+            const id = Date.now();
+            fields.push({
+                label: '',
+                type: 'text',
+                id
+            });
+
+            const container = document.createElement('div');
+            container.classList.add('mb-4', 'border', 'p-3', 'rounded-md', 'bg-gray-50');
+            container.setAttribute('data-id', id);
+
+            container.innerHTML = `
+                <div class="mb-2">
+                    <label class="block text-sm font-medium">Field Label</label>
+                    <input type="text" class="w-full mt-1 p-2 border rounded" onchange="updateField(${id}, 'label', this.value)">
+                </div>
+                <div class="mb-2">
+                    <label class="block text-sm font-medium">Field Type</label>
+                    <select class="w-full mt-1 p-2 border rounded" onchange="updateField(${id}, 'type', this.value)">
+                        <option value="text">Short Text</option>
+                        <option value="textarea">Paragraph</option>
+                        <option value="date">Date</option>
+                        <option value="radio">Multiple Choice (Radio)</option>
+                        <option value="checkbox">Checkboxes</option>
+                    </select>
+                </div>
+                <button type="button" onclick="removeField(${id})" class="text-sm text-red-600 hover:underline">Remove</button>
+            `;
+
+            document.getElementById('field-list').appendChild(container);
+        }
+
+        function updateField(id, key, value) {
+            fields = fields.map(f => {
+                if (f.id === id) {
+                    f[key] = value;
+                }
+                return f;
+            });
+        }
+
+        function removeField(id) {
+            fields = fields.filter(f => f.id !== id);
+            document.querySelector(`[data-id="${id}"]`).remove();
+        }
+
+        function prepareFields() {
+            const validFields = fields.filter(f => f.label.trim() !== '');
+            document.getElementById('fields-input').value = JSON.stringify(validFields);
+        }
+
         function formBuilder() {
             return {
                 formTitle: '',
