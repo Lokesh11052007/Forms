@@ -40,6 +40,39 @@ class FormController extends Controller
         return back()->with('success', 'Field added successfully!');
     }
 
+    public function store(Request $request)
+    {
+        $request->validate([
+            'form_title' => 'required|string|max:255',
+            'fields' => 'required|json',
+        ]);
+
+        $username = auth()->user()->username;
+        $tableName = strtolower($username);
+        $formTitle = $request->form_title;
+        $slug = str_replace([' ', '-'], '_', strtolower($formTitle));
+        $responseTable = 'responses_' . $slug;
+
+        DB::table($tableName)->insert([
+            'field_name' => $formTitle,
+            'url' => null,
+        ]);
+
+        if (!Schema::hasTable($responseTable)) {
+            Schema::create($responseTable, function ($table) use ($request) {
+                $table->id();
+                foreach (json_decode($request->fields, true) as $field) {
+                    $column = str_replace(' ', '_', strtolower($field['label']));
+                    $table->text($column)->nullable();
+                }
+                $table->timestamps();
+            });
+        }
+
+        $formUrl = route('form.fill', ['username' => $username, 'slug' => $slug]);
+        return back()->with('success', 'Form created successfully! Share this link: ' . $formUrl);
+    }
+
     public function previewForm()
     {
         $username = Auth::user()->username;
@@ -95,39 +128,6 @@ class FormController extends Controller
             'formName' => $form, // 👈 add this
             'responses' => $responses
         ]);
-    }
-
-    public function store(Request $request)
-    {
-        $request->validate([
-            'form_title' => 'required|string|max:255',
-            'fields' => 'required|json',
-        ]);
-
-        $username = auth()->user()->username;
-        $tableName = strtolower($username);
-        $formTitle = $request->form_title;
-        $slug = str_replace([' ', '-'], '_', strtolower($formTitle));
-        $responseTable = 'responses_' . $slug;
-
-        DB::table($tableName)->insert([
-            'field_name' => $formTitle,
-            'url' => null,
-        ]);
-
-        if (!Schema::hasTable($responseTable)) {
-            Schema::create($responseTable, function ($table) use ($request) {
-                $table->id();
-                foreach (json_decode($request->fields, true) as $field) {
-                    $column = str_replace(' ', '_', strtolower($field['label']));
-                    $table->text($column)->nullable();
-                }
-                $table->timestamps();
-            });
-        }
-
-        $formUrl = route('form.fill', ['username' => $username, 'slug' => $slug]);
-        return back()->with('success', 'Form created successfully! Share this link: ' . $formUrl);
     }
 
     public function showResponseForm($username, $slug)
