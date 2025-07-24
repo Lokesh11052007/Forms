@@ -4,6 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Dashboard</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="https://ui-avatars.com/api/?name={{ $user->username }}&background=6b46c1&color=fff&rounded=true">
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 
@@ -35,14 +36,16 @@
                         <a href="{{ route('form.fill', ['username' => $user->username, 'slug' => $slug]) }}" class="flex items-center gap-2">
                             <span>📄</span>{{ $form }}
                         </a>
-
-                        <form method="POST" action="{{ route('form.delete', ['form' => $slug]) }}" onsubmit="return confirm('Are you sure to delete this form?');">
-                            @csrf
-                            @method('DELETE')
-                            <button type="submit" class="text-red-400 hover:text-red-600 ml-2" title="Delete">
-                                ❌
-                            </button>
-                        </form>
+                        <div class="flex gap-2">
+                            <a href="{{ route('form.fill', ['username' => $user->username, 'slug' => $slug]) }}" class="hover:underline" target="_blank">🔗 View</a>
+                            <form method="POST" action="{{ route('form.delete', ['form' => $slug]) }}" onsubmit="return confirm('Are you sure to delete this form?');">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="text-red-400 hover:text-red-600 ml-2" title="Delete">
+                                    ❌
+                                </button>
+                            </form>
+                        </div>
                     </li>
                     @endforeach
 
@@ -51,13 +54,24 @@
             </div>
         </div>
 
-        <!-- Logout -->
-        <form method="POST" action="{{ route('logout') }}" class="mt-8">
-            @csrf
-            <button type="submit" class="w-full bg-red-600 hover:bg-red-700 px-4 py-2 rounded text-white shadow-md">
-                🚪 Logout
-            </button>
-        </form>
+        <div>
+            <!-- Logout -->
+            <form method="POST" action="{{ route('logout') }}" class="mt-8">
+                @csrf
+                <button type="submit" class="w-full bg-red-600 hover:bg-red-700 px-4 py-2 rounded text-white shadow-md">
+                    🚪 Logout
+                </button>
+            </form>
+            <!-- Delete Account -->
+            <form method="POST" action="{{ route('account.delete') }}" class="mt-3" onsubmit="return confirm('Are you sure you want to delete your account and all associated data?');">
+                @csrf
+                @method('DELETE')
+                <button type="submit" class="w-full bg-red-800 hover:bg-red-900 px-4 py-2 rounded text-white shadow-md">
+                    🗑️ Delete Account
+                </button>
+            </form>
+        </div>
+
     </aside>
 
     <!-- Main -->

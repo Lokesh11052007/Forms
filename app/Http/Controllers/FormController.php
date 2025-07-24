@@ -22,23 +22,23 @@ class FormController extends Controller
         return view('form.builder', compact('user', 'forms'));
     }
 
-    public function storeField(Request $request)
-    {
-        $request->validate([
-            'field_name' => 'required|string|max:255',
-            'url' => 'nullable|url',
-        ]);
+    // public function storeField(Request $request)
+    // {
+    //     $request->validate([
+    //         'field_name' => 'required|string|max:255',
+    //         'url' => 'nullable|url',
+    //     ]);
 
-        $username = Auth::user()->username;
-        $tableName = strtolower($username);
+    //     $username = Auth::user()->username;
+    //     $tableName = strtolower($username);
 
-        DB::table($tableName)->insert([
-            'field_name' => $request->field_name,
-            'url' => $request->url,
-        ]);
+    //     DB::table($tableName)->insert([
+    //         'field_name' => $request->field_name,
+    //         'url' => $request->url,
+    //     ]);
 
-        return back()->with('success', 'Field added successfully!');
-    }
+    //     return back()->with('success', 'Field added successfully! using StoreField');
+    // }
 
     public function store(Request $request)
     {
@@ -55,16 +55,39 @@ class FormController extends Controller
 
         DB::table($tableName)->insert([
             'field_name' => $formTitle,
-            'url' => null,
         ]);
 
         if (!Schema::hasTable($responseTable)) {
             Schema::create($responseTable, function ($table) use ($request) {
                 $table->id();
+
                 foreach (json_decode($request->fields, true) as $field) {
                     $column = str_replace(' ', '_', strtolower($field['label']));
-                    $table->text($column)->nullable();
+
+                    // Set column type based on field type
+                    switch ($field['type'] ?? 'text') {
+                        case 'textarea':
+                            $table->text($column)->nullable();
+                            break;
+                        case 'date':
+                            $table->date($column)->nullable();
+                            break;
+                        case 'radio':
+                        case 'checkbox':
+                            // For multiple choice fields, store as JSON
+                            $table->json($column)->nullable();
+                            break;
+                        case 'number':
+                            $table->integer($column)->nullable();
+                            break;
+                        case 'email':
+                            $table->string($column)->nullable();
+                            break;
+                        default: // text and other types
+                            $table->string($column)->nullable();
+                    }
                 }
+
                 $table->timestamps();
             });
         }
@@ -144,18 +167,60 @@ class FormController extends Controller
             abort(404, 'Form not found.');
         }
 
-        $fields = array_filter(
-            Schema::getColumnListing($responseTable),
-            fn($f) => !in_array($f, ['id', 'created_at', 'updated_at'])
-        );
+        // Get column types using Schema::getColumnType()
+        $columns = Schema::getColumnListing($responseTable);
+
+        $fields = [];
+        foreach ($columns as $column) {
+            // Skip system columns
+            if (in_array($column, ['id', 'created_at', 'updated_at'])) {
+                continue;
+            }
+
+            // Get column type
+            $columnType = Schema::getColumnType($responseTable, $column);
+
+            // Determine field type based on column type
+            $type = $this->mapColumnTypeToFieldType($columnType);
+
+            $fields[] = [
+                'name' => $column,
+                'type' => $type,
+                'options' => null // You can add logic to retrieve options if needed
+            ];
+        }
 
         return view('form.fill', [
             'fields' => $fields,
             'username' => $username,
             'slug' => $slug,
-            'formSlug' => $slug, // ✅ add this
+            'formSlug' => $slug,
             'formTitle' => $formTitle
         ]);
+    }
+
+    /**
+     * Map database column types to form field types
+     */
+    protected function mapColumnTypeToFieldType($columnType)
+    {
+        $mapping = [
+            'string' => 'text',
+            'text' => 'textarea',
+            'date' => 'date',
+            'datetime' => 'datetime-local',
+            'timestamp' => 'datetime-local',
+            'integer' => 'number',
+            'bigint' => 'number',
+            'float' => 'number',
+            'double' => 'number',
+            'decimal' => 'number',
+            'boolean' => 'checkbox',
+            'json' => 'checkbox', // Assuming JSON is used for multiple checkboxes
+            // Add more mappings as needed
+        ];
+
+        return $mapping[$columnType] ?? 'text';
     }
 
     public function submitResponse(Request $request, $username, $slug)
@@ -166,7 +231,14 @@ class FormController extends Controller
             abort(404, 'Form response table not found.');
         }
 
-        DB::table($table)->insert($request->except('_token'));
+        $data = $request->except('_token');
+
+        // Add timestamps manually
+        $now = now();
+        $data['created_at'] = $now;
+        $data['updated_at'] = $now;
+
+        DB::table($table)->insert($data);
         return back()->with('success', 'Response submitted successfully!');
     }
 

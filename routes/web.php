@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\FormController;
+use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SocialLoginController;
 
 Route::get('/', function () {
@@ -23,7 +24,8 @@ Route::get('/auth/google/callback', [SocialLoginController::class, 'callback']);
 // Authenticated Form Routes
 Route::middleware('auth')->group(function () {
     Route::get('/form-builder', [FormController::class, 'showBuilder'])->name('form.builder');
-    Route::post('/form-builder', [FormController::class, 'storeField'])->name('form.storeField');
+    // Route::post('/form-builder', [FormController::class, 'storeField'])->name('form.storeField');
+
     Route::post('/form/store', [FormController::class, 'store'])->name('form.store');
     Route::get('/form-preview', [FormController::class, 'previewForm'])->name('form.preview');
     Route::get('/dashboard/forms/{form}', [FormController::class, 'viewResponses'])->name('form.responses');
@@ -39,3 +41,4 @@ Route::post('/forms/{username}/{slug}', [FormController::class, 'submitResponse'
 // Route::get('/forms/{username}/{form}', [FormController::class, 'publicForm'])->name('forms.public');
 
 Route::delete('/form/delete/{form}', [FormController::class, 'deleteForm'])->name('form.delete');
+Route::delete('/delete-account', [ProfileController::class, 'deleteAccount'])->name('account.delete');

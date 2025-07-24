@@ -4,6 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Create New Form</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="https://ui-avatars.com/api/?name={{ $user->username }}&background=6b46c1&color=fff&rounded=true">
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
@@ -112,7 +113,7 @@
             const id = Date.now();
             fields.push({
                 label: '',
-                type: 'text',
+                type: 'text', // Default type
                 id
             });
 
@@ -121,22 +122,29 @@
             container.setAttribute('data-id', id);
 
             container.innerHTML = `
-                <div class="mb-2">
-                    <label class="block text-sm font-medium">Field Label</label>
-                    <input type="text" class="w-full mt-1 p-2 border rounded" onchange="updateField(${id}, 'label', this.value)">
-                </div>
-                <div class="mb-2">
-                    <label class="block text-sm font-medium">Field Type</label>
-                    <select class="w-full mt-1 p-2 border rounded" onchange="updateField(${id}, 'type', this.value)">
-                        <option value="text">Short Text</option>
-                        <option value="textarea">Paragraph</option>
-                        <option value="date">Date</option>
-                        <option value="radio">Multiple Choice (Radio)</option>
-                        <option value="checkbox">Checkboxes</option>
-                    </select>
-                </div>
-                <button type="button" onclick="removeField(${id})" class="text-sm text-red-600 hover:underline">Remove</button>
-            `;
+            <div class="mb-2">
+                <label class="block text-sm font-medium">Field Label</label>
+                <input type="text" class="w-full mt-1 p-2 border rounded" onchange="updateField(${id}, 'label', this.value)">
+            </div>
+            <div class="mb-2">
+                <label class="block text-sm font-medium">Field Type</label>
+                <select class="w-full mt-1 p-2 border rounded" onchange="updateField(${id}, 'type', this.value)">
+                    <option value="text">Short Text</option>
+                    <option value="textarea">Paragraph</option>
+                    <option value="number">Number</option>
+                    <option value="email">Email</option>
+                    <option value="date">Date</option>
+                    <option value="radio">Multiple Choice (Radio)</option>
+                    <option value="checkbox">Checkboxes</option>
+                </select>
+            </div>
+            <div id="options-container-${id}" class="hidden">
+                <label class="block text-sm font-medium">Options (comma separated)</label>
+                <input type="text" class="w-full mt-1 p-2 border rounded" placeholder="Option 1, Option 2, Option 3" 
+                       onchange="updateField(${id}, 'options', this.value.split(',').map(opt => opt.trim()))">
+            </div>
+            <button type="button" onclick="removeField(${id})" class="text-sm text-red-600 hover:underline">Remove</button>
+        `;
 
             document.getElementById('field-list').appendChild(container);
         }
@@ -145,6 +153,20 @@
             fields = fields.map(f => {
                 if (f.id === id) {
                     f[key] = value;
+
+                    // Show/hide options container based on field type
+                    if (key === 'type') {
+                        const optionsContainer = document.getElementById(`options-container-${id}`);
+                        if (['radio', 'checkbox'].includes(value)) {
+                            optionsContainer.classList.remove('hidden');
+                            // Initialize options if not already set
+                            if (!f.options) f.options = [];
+                        } else {
+                            optionsContainer.classList.add('hidden');
+                            // Remove options if not needed
+                            if (f.options) delete f.options;
+                        }
+                    }
                 }
                 return f;
             });

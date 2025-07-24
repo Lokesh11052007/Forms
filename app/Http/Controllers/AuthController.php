@@ -44,7 +44,6 @@ class AuthController extends Controller
             CREATE TABLE `$tableName` (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 field_name VARCHAR(255),
-                url TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ");

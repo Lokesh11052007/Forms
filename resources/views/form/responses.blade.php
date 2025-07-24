@@ -4,6 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Responses - {{ $formName }}</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="https://ui-avatars.com/api/?name={{ auth()->user()->username }}&background=6b46c1&color=fff&rounded=true">
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 

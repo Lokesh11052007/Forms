@@ -24,9 +24,46 @@
                 @foreach($fields as $field)
                 <div class="mb-4">
                     <label class="block font-semibold mb-1">
-                        {{ ucwords(str_replace('_', ' ', $field)) }}
+                        {{ ucwords(str_replace('_', ' ', $field['name'])) }}
                     </label>
-                    <input type="text" name="{{ $field }}" class="w-full border rounded px-3 py-2" required>
+
+                    @if($field['type'] === 'textarea')
+                    <textarea name="{{ $field['name'] }}" class="w-full border rounded px-3 py-2" rows="4" required></textarea>
+
+                    @elseif($field['type'] === 'date')
+                    <input type="date" name="{{ $field['name'] }}" class="w-full border rounded px-3 py-2" required>
+
+                    @elseif($field['type'] === 'radio' && !empty($field['options']))
+                    <div class="space-y-2">
+                        @foreach(explode(',', $field['options']) as $option)
+                        <div class="flex items-center">
+                            <input type="radio" name="{{ $field['name'] }}" id="{{ $field['name'] }}_{{ $loop->index }}"
+                                value="{{ trim($option) }}" class="mr-2" {{ $loop->first ? 'required' : '' }}>
+                            <label for="{{ $field['name'] }}_{{ $loop->index }}">{{ trim($option) }}</label>
+                        </div>
+                        @endforeach
+                    </div>
+
+                    @elseif($field['type'] === 'checkbox' && !empty($field['options']))
+                    <div class="space-y-2">
+                        @foreach(explode(',', $field['options']) as $option)
+                        <div class="flex items-center">
+                            <input type="checkbox" name="{{ $field['name'] }}[]" id="{{ $field['name'] }}_{{ $loop->index }}"
+                                value="{{ trim($option) }}" class="mr-2">
+                            <label for="{{ $field['name'] }}_{{ $loop->index }}">{{ trim($option) }}</label>
+                        </div>
+                        @endforeach
+                    </div>
+
+                    @elseif($field['type'] === 'number')
+                    <input type="number" name="{{ $field['name'] }}" class="w-full border rounded px-3 py-2" required>
+
+                    @elseif($field['type'] === 'email')
+                    <input type="email" name="{{ $field['name'] }}" class="w-full border rounded px-3 py-2" required>
+
+                    @else
+                    <input type="text" name="{{ $field['name'] }}" class="w-full border rounded px-3 py-2" required>
+                    @endif
                 </div>
                 @endforeach
 
