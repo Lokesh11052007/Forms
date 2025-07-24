@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Schema;
+
 use Illuminate\Support\Facades\Session;
 
 class AuthController extends Controller
@@ -20,46 +20,36 @@ class AuthController extends Controller
     public function register(Request $request)
     {
         $request->validate([
-            'username' => 'required|alpha_dash|unique:users,username|max:63', // PostgreSQL has 63-char limit for identifiers
-            'email' => 'required|email|unique:users,email|max:255',
-            'password' => 'required|min:6|confirmed',
+            'username' => 'required|unique:users,username',
+            'email' => 'required|email|unique:users,email',
+            'password' => 'required|min:6',
         ]);
 
-        DB::beginTransaction();
+        // Create the user
+        $user = User::create([
+            'username' => $request->username,
+            'email' => $request->email,
+            'password' => Hash::make($request->password),
+        ]);
 
-        try {
-            $user = User::create([
-                'username' => $request->username,
-                'email' => $request->email,
-                'password' => Hash::make($request->password),
-            ]);
+        // Create a table named after the username
+        $tableName = strtolower($user->username); // Make sure it's lowercase
 
-            $tableName = strtolower($user->username);
-
-            // Additional validation for PostgreSQL table names
-            if (!preg_match('/^[a-z][a-z0-9_]*$/', $tableName) || strlen($tableName) > 63) {
-                throw new \Exception('Invalid username for table name.');
-            }
-
-            if (Schema::hasTable($tableName)) {
-                throw new \Exception('Table already exists.');
-            }
-
-            // PostgreSQL-compatible schema creation
-            Schema::create($tableName, function (Blueprint $table) {
-                $table->id(); // This will use SERIAL for PostgreSQL
-                $table->string('field_name');
-                $table->text('url')->nullable();
-                $table->timestamps(); // Creates both created_at and updated_at
-            });
-
-            DB::commit();
-
-            return redirect()->route('login.form')->with('success', 'Registration successful! Please login.');
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return back()->withErrors(['error' => 'Registration failed: ' . $e->getMessage()]);
+        // Sanitize table name (you can also slugify it)
+        if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $tableName)) {
+            return response()->json(['error' => 'Invalid username for table name.'], 400);
         }
+
+        DB::statement("
+            CREATE TABLE $tableName (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                field_name VARCHAR(255),
+                url TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ");
+
+        return response()->json(['message' => 'User registered and table created!']);
     }
 
 
