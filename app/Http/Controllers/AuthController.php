@@ -40,13 +40,11 @@ class AuthController extends Controller
             return response()->json(['error' => 'Invalid username for table name.'], 400);
         }
 
-        DB::statement("
-            CREATE TABLE `$tableName` (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                field_name VARCHAR(255),
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ");
+        Schema::create($tableName, function (Blueprint $table) {
+            $table->id(); // This creates an auto-incrementing primary key 'id' column
+            $table->string('field_name');
+            $table->timestamps(); // Creates created_at and updated_at columns
+        });
 
         return redirect('/login')->with('success', 'User registered successfully! Please login.');
     }
