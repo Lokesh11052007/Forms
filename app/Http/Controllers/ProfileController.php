@@ -32,9 +32,9 @@ class ProfileController extends Controller
             }
 
             // Step 2: Drop the user’s table
-            Schema::dropIfExists($username);
+            //Schema::dropIfExists($username);
         }
-
+        Schema::dropIfExists($username);
         // Step 3: Delete the user from `users` table by username
         DB::table('users')->where('username', $username)->delete();
 
